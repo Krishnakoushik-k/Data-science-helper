@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Science Helper</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9fafb;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2em;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    .card h2 {
+      font-size: 1.2em;
+      margin-bottom: 10px;
+    }
+    input[type="file"] {
+      display: block;
+      margin-bottom: 10px;
+    }
+    select {
+      padding: 5px;
+      margin-top: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 8px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+    .stats {
+      display: flex;
+      gap: 20px;
+      margin-top: 10px;
+    }
+    .stat-box {
+      flex: 1;
+      background: #f1f5f9;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 200px;
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+    .bar {
+      width: 20px;
+      background-color: #3b82f6;
+      transition: 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Data Science Helper</h1>
+
+    <div class="card">
+      <h2>Upload CSV File</h2>
+      <input type="file" id="file-upload" accept=".csv" />
+      <p id="file-name"></p>
+      <p id="loading" style="display:none;">Loading...</p>
+    </div>
+
+    <div id="preview-section" style="display:none;">
+      <div class="card">
+        <h2>Data Preview</h2>
+        <table id="data-table"></table>
+        <p id="row-count"></p>
+      </div>
+
+      <div class="card">
+        <h2>Select Column</h2>
+        <select id="column-select"></select>
+      </div>
+
+      <div class="card">
+        <h2>Basic Statistics</h2>
+        <div class="stats">
+          <div class="stat-box"><strong>Mean:</strong> <span id="mean"></span></div>
+          <div class="stat-box"><strong>Median:</strong> <span id="median"></span></div>
+          <div class="stat-box"><strong>Mode:</strong> <span id="mode"></span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Simple Visualization</h2>
+        <div class="bar-chart" id="bar-chart"></div>
+        <p>Bar chart showing values from selected column (first 20 rows)</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('file-upload');
+    const fileName = document.getElementById('file-name');
+    const loading = document.getElementById('loading');
+    const previewSection = document.getElementById('preview-section');
+    const dataTable = document.getElementById('data-table');
+    const columnSelect = document.getElementById('column-select');
+    const meanSpan = document.getElementById('mean');
+    const medianSpan = document.getElementById('median');
+    const modeSpan = document.getElementById('mode');
+    const rowCount = document.getElementById('row-count');
+    const barChart = document.getElementById('bar-chart');
+
+    let headers = [];
+    let data = [];
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      fileName.textContent = file.name;
+      loading.style.display = 'block';
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result;
+        const lines = content.split('\n').filter(line => line.trim() !== '');
+        headers = lines[0].split(',');
+        data = lines.slice(1).map(line => {
+          const values = line.split(',');
+          return headers.reduce((obj, header, i) => {
+            obj[header] = values[i]?.trim();
+            return obj;
+          }, {});
+        });
+
+        updateUI();
+        loading.style.display = 'none';
+        previewSection.style.display = 'block';
+      };
+      reader.readAsText(file);
+    });
+
+    function updateUI() {
+      columnSelect.innerHTML = headers.map(h => `<option value="${h}">${h}</option>`).join('');
+      renderTable();
+      updateStatsAndChart(headers[0]);
+      columnSelect.onchange = () => updateStatsAndChart(columnSelect.value);
+    }
+
+    function renderTable() {
+      let html = '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+      data.slice(0, 10).forEach(row => {
+        html += '<tr>' + headers.map(h => `<td>${row[h]}</td>`).join('') + '</tr>';
+      });
+      html += '</tbody>';
+      dataTable.innerHTML = html;
+      rowCount.textContent = `Showing first 10 of ${data.length} rows.`;
+    }
+
+    function updateStatsAndChart(column) {
+      const values = data.map(d => parseFloat(d[column])).filter(n => !isNaN(n));
+      if (values.length === 0) {
+        meanSpan.textContent = medianSpan.textContent = modeSpan.textContent = 'N/A';
+        barChart.innerHTML = '<p>No numeric data available</p>';
+        return;
+      }
+
+      const mean = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
+      const sorted = [...values].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      const median = sorted.length % 2 ? sorted[mid] : ((sorted[mid - 1] + sorted[mid]) / 2).toFixed(2);
+      const freq = {};
+      values.forEach(n => freq[n] = (freq[n] || 0) + 1);
+      const maxFreq = Math.max(...Object.values(freq));
+      const mode = Object.entries(freq).filter(([k, v]) => v === maxFreq).map(([k]) => k).join(', ');
+
+      meanSpan.textContent = mean;
+      medianSpan.textContent = median;
+      modeSpan.textContent = mode;
+
+      renderChart(values.slice(0, 20));
+    }
+
+    function renderChart(values) {
+      const maxVal = Math.max(...values);
+      barChart.innerHTML = '';
+      values.forEach(val => {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = `${(val / maxVal) * 100}%`;
+        bar.title = val;
+        barChart.appendChild(bar);
+      });
+    }
+  </script>
+</body>
+</html>
